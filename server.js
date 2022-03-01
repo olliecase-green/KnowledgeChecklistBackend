@@ -7,13 +7,7 @@ import { v4 } from "https://deno.land/std/uuid/mod.ts";
 const app = new Application();
 const db = new DB("./knowledge_checklist.db");
 const PORT = 8080;
-const allowedHeaders = [
-  "Authorization",
-  "Content-Type",
-  "Accept",
-  "Origin",
-  "User-Agent",
-];
+const allowedHeaders = ["Authorization", "Content-Type", "Accept", "Origin", "User-Agent"];
 
 app
   .use(allowCors())
@@ -26,7 +20,6 @@ app
   .post("/users", postSignup)
   .post("/sessions", postLogin)
   .post("/:user_id/LOs", postScore)
-  .post("/postCohort", postCohort)
   .delete("/deleteLOs", deleteLOs)
   .start({ port: PORT });
 console.log(`Server running on http://localhost:${PORT}`);
@@ -64,7 +57,11 @@ async function getStudents(server) {
     WHERE cohort_id = ?
   `;
   const LOs = [...(await db.query(query, [cohort_id]).asObjects())];
+  // if (LOs.length !== 0) {
   return server.json(LOs, 200);
+  // } else {
+  //   return server.json({ error: "Student does not exist" }, 400);
+  // }
 }
 
 async function getStudentData(server) {
@@ -76,7 +73,11 @@ async function getStudentData(server) {
   ORDER BY topic ASC
   `;
   const LOs = [...(await db.query(query, [user_id]).asObjects())];
+  // if (LOs.length !== 0) {
   return server.json(LOs, 200);
+  // } else {
+  //   return server.json({ error: "Student does not exist" }, 400);
+  // }
 }
 
 async function getCohortLOs(server) {
@@ -95,7 +96,7 @@ async function getCohorts(server) {
   const query = `
     SELECT DISTINCT cohort_id 
     FROM learning_objectives
-    ORDER BY cohort_id ASC
+    ORDER BY cohort_id asc
   `;
   const cohorts = [...(await db.query(query).asObjects())];
   return server.json(cohorts, 200);
@@ -117,45 +118,18 @@ async function postLO(server) {
   ];
 
   check.forEach((i) =>
-    db.query(
-      `INSERT INTO results (user_id,email,cohort_id,topic,learning_objective) VALUES ('${i[2]}','${i[0]}','${i[1]}',?,?)`,
-      [topic, learning_objective]
-    )
+    db.query(`INSERT INTO results (user_id,email,cohort_id,topic,learning_objective) VALUES ('${i[2]}','${i[0]}','${i[1]}',?,?)`, [
+      topic,
+      learning_objective,
+    ])
   );
 }
-
-async function postCohort(server) {
-  const { cohort_id } = await server.body;
-  const data = [
-    ["HTML/CSS", "Understand what parent and child is"],
-    ["HTML/CSS", "Can create and link a stylesheet"],
-    ["Javascript", "Be able to link a Javascript file in your project"],
-    ["Javascript", "Be able to do a console.log()"],
-    [
-      "React",
-      "Understand the difference between class and functional components",
-    ],
-    ["React", "Be able to create a React application with create-react-app"],
-  ];
-  data.forEach((item) => {
-    db.query(
-      `
-      INSERT INTO learning_objectives (cohort_id, topic, learning_objective)
-      VALUES (?, '${item[0]}', '${item[1]}')
-    `,
-      [cohort_id]
-    );
-  });
-  return server.json({ success: true }, 200);
-}
-
 function validateEmail(email) {
   if (/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/.test(email)) {
     return true;
   }
   return false;
 }
-
 async function postSignup(server) {
   const { email, password, cohort_id } = await server.body;
   const salt = await bcrypt.genSalt(8);
@@ -165,9 +139,7 @@ async function postSignup(server) {
     return server.json({ error: "Enter valid email" }, 400);
   }
 
-  const checkRepeatEmails = [
-    ...db.query("SELECT COUNT(*) FROM users WHERE email = ?", [email]),
-  ];
+  const checkRepeatEmails = [...db.query("SELECT COUNT(*) FROM users WHERE email = ?", [email])];
 
   if (checkRepeatEmails[0][0]) {
     return server.json({ error: "Email already in use" }, 400);
@@ -185,9 +157,7 @@ async function postSignup(server) {
     ),
   ];
   check.forEach((i) =>
-    db.query(
-      `INSERT INTO results (user_id,email,cohort_id,topic,learning_objective) VALUES ('${i[0]}','${i[1]}','${i[2]}','${i[3]}','${i[4]}')`
-    )
+    db.query(`INSERT INTO results (user_id,email,cohort_id,topic,learning_objective) VALUES ('${i[0]}','${i[1]}','${i[2]}','${i[3]}','${i[4]}')`)
   );
 
   server.json({ success: true }, 200);
@@ -195,19 +165,9 @@ async function postSignup(server) {
 
 async function postLogin(server) {
   const { email, password } = await server.body;
-  const authenticated = [
-    ...db.query("SELECT * FROM users WHERE email = ?", [email]).asObjects(),
-  ];
-  if (
-    authenticated.length &&
-    (await bcrypt.compare(password, authenticated[0].encrypted_password))
-  ) {
-    makeSession(
-      authenticated[0].id,
-      authenticated[0].email,
-      server,
-      authenticated[0].admin
-    );
+  const authenticated = [...db.query("SELECT * FROM users WHERE email = ?", [email]).asObjects()];
+  if (authenticated.length && (await bcrypt.compare(password, authenticated[0].encrypted_password))) {
+    makeSession(authenticated[0].id, authenticated[0].email, server, authenticated[0].admin);
     server.json({ success: true });
   } else {
     server.json({ success: false });
@@ -217,16 +177,9 @@ async function postLogin(server) {
 async function postScore(server) {
   const { userID, LO, score } = await server.body;
 
-  db.query(
-    `UPDATE results SET score = ? WHERE user_id = ? AND learning_objective = ?`,
-    [score, userID, LO]
-  );
+  db.query(`UPDATE results SET score = ? WHERE user_id = ? AND learning_objective = ?`, [score, userID, LO]);
 
-  const LOs = [
-    ...db
-      .query("SELECT * FROM results WHERE user_id = ?", [userID])
-      .asObjects(),
-  ];
+  const LOs = [...db.query("SELECT * FROM results WHERE user_id = ?", [userID]).asObjects()];
 
   console.log(LOs);
 
@@ -235,10 +188,12 @@ async function postScore(server) {
 
 async function makeSession(userID, e, server, isAdmin) {
   const sessionID = v4.generate();
-  await db.query(
-    `INSERT INTO sessions (id, user_id, email, created_at, isAdmin) VALUES (?, ?, ?, datetime('now'), ?)`,
-    [sessionID, userID, e, isAdmin]
-  );
+  await db.query(`INSERT INTO sessions (id, user_id, email, created_at, isAdmin) VALUES (?, ?, ?, datetime('now'), ?)`, [
+    sessionID,
+    userID,
+    e,
+    isAdmin,
+  ]);
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + 1);
   server.setCookie({
@@ -252,11 +207,11 @@ async function makeSession(userID, e, server, isAdmin) {
 }
 
 async function deleteLOs(server) {
-  const { learning_objective } = await server.body;
-  const query = `DELETE FROM learning_objectives WHERE learning_objective = ?`;
-  const query2 = `DELETE FROM results WHERE learning_objective = ?`;
+  const { learning_objective, cohort_id } = await server.body;
+  const query = `DELETE FROM learning_objectives WHERE learning_objective = ? AND cohort_id = ?`;
+  const query2 = `DELETE FROM results WHERE learning_objective = ? AND cohort_id = ?`;
 
-  await db.query(query, [learning_objective]);
-  await db.query(query2, [learning_objective]);
+  await db.query(query, [learning_objective, cohort_id]);
+  await db.query(query2, [learning_objective, cohort_id]);
   server.json({ success: true }, 200);
 }
